@@ -23,12 +23,17 @@ def parse_announcement(text):
     text = re.sub(r"\s+", " ", text.strip())
 
     # Extract Title (bold or ### header like Markdown)
-    title_match = re.search(r"(#+\s)?([A-ZÀ-ÿ0-9].+?)\s?\(", text)
+    title_match = re.search(r"(#+\s)?([A-ZÀ-ÿ0-9][^()]+?)\s?\(", text)
     if title_match:
-        title = title_match.group(2)
+        title = title_match.group(2).strip()
+    else:
+        # Fallback: First capitalized line
+        first_line = re.match(r"^([A-ZÀ-ÿ][a-zA-Z0-9\s\-',]+)", text)
+        if first_line:
+            title = first_line.group(0).strip()
 
     # Extract Price (like 1200DT or 1 200 Dinars)
-    price_match = re.search(r"([\d\s]+)(DT|Dinars)", text)
+    price_match = re.search(r"([\d\s]+)(DT|Dinars|TND)", text)
     if price_match:
         price = price_match.group(1).replace(" ", "") + " " + price_match.group(2)
 
@@ -43,12 +48,12 @@ def parse_announcement(text):
         category = cat_match.group(0).title()
 
     # Extract Publisher name (before “publié par” or boutique name)
-    pub_match = re.search(r"publié par ([A-Za-z0-9\s\-]+)", text)
+    pub_match = re.search(r"publié par ([A-Za-z0-9\s\-]+)", text, re.IGNORECASE)
     if pub_match:
         publisher = pub_match.group(1).strip()
 
     # Basic Description snippet
-    desc_match = re.search(r"propose.+?\.", text, re.IGNORECASE)
+    desc_match = re.search(r"[Pp]ropose.*?\.", text)
     if desc_match:
         description = desc_match.group(0)
 
@@ -67,11 +72,22 @@ if uploaded_file:
         df = pd.read_excel(uploaded_file)
 
         # Detect column with raw text
-        column_name = "data" if "data" in df.columns else df.columns[0]
-        raw_text = df[column_name].astype(str).str.cat(sep=" ")
+        column_name = None
+        for col in df.columns:
+            if "text" in col.lower() or "data" in col.lower():
+                column_name = col
+                break
+        if column_name is None:
+            column_name = df.columns[0]
 
-        # Split by announcement separator (typically /item/ or specific pattern)
-        blocks = re.split(r"/item/|(?=\d{6,}\/)", raw_text)
+        # Process each row individually
+        blocks = []
+        for idx, row in df.iterrows():
+            raw_text = str(row[column_name])
+            if raw_text.strip():
+                # Split by /item/ or other separators
+                items = re.split(r"/item/|(?=\d{6,}/)", raw_text)
+                blocks.extend(items)
 
         st.write(f"🧾 Detected {len(blocks)} announcements")
 
@@ -84,7 +100,8 @@ if uploaded_file:
 
         # Download
         output = BytesIO()
-        result_df.to_excel(output, index=False, engine="openpyxl")
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+            result_df.to_excel(writer, index=False)
         output.seek(0)
 
         st.download_button(
