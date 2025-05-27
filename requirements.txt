@@ -1,5 +1,4 @@
-streamlit
-pandas
-openpyx
-xlrd
-rapidfuzz
+streamlit==1.35.0
+pandas==2.2.2
+openpyxl==3.1.2
+rapidfuzz==3.6.1
