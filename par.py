@@ -1,57 +1,68 @@
-import streamlit as st
-import pandas as pd
 import re
-from io import BytesIO
+import pandas as pd
 
-def parse_markdown(text):
-    items = text.split("/item/")
-    result = []
+# List of major Tunisian cities and governorates (you can expand this)
+TUNISIAN_LOCATIONS = [
+    "Tunis", "Ariana", "Ben Arous", "La Marsa", "Manouba", "Nabeul", "Sousse", "Sfax",
+    "Monastir", "Mahdia", "Gabès", "Médenine", "Tataouine", "Kairouan", "Kasserine", "Gafsa",
+    "Kébili", "Tozeur", "Siliana", "Beja", "Bizerte", "Zaghouan", "Jendouba", "Le Kef"
+]
 
-    for entry in items:
-        if len(entry.strip()) < 20:
+def extract_location(text):
+    for loc in TUNISIAN_LOCATIONS:
+        if re.search(rf"\b{re.escape(loc)}\b", text, re.IGNORECASE):
+            return loc
+    return ""
+
+def extract_announcements(raw_text):
+    # Split each block by possible delimiter
+    announcements = re.split(r'/item/|\n?\* \[', raw_text)
+    structured = []
+
+    for block in announcements:
+        block = block.strip()
+        if not block or "publié par" not in block:
             continue
 
-        # Placeholder logic — replace with real parsing
-        title = re.search(r'## (.+)', entry)
-        location = re.search(r'(\b[A-Z][a-z]+,\s?\d+ minutes ago\b)', entry)
-        price = re.search(r'(\d{3,})DT', entry)
+        title_match = re.search(r'publié par .*? - (.*?) -', block)
+        title = title_match.group(1).strip() if title_match else ""
 
-        result.append({
-            "Title": title.group(1) if title else "",
-            "Location": location.group(1) if location else "",
-            "Price": price.group(1) if price else "",
-            "Raw": entry.strip()
+        price_match = re.search(r'(\d+[.,]?\d*)\s?DT', block)
+        price = price_match.group(0).strip() if price_match else ""
+
+        location = extract_location(block)
+
+        category_match = re.search(r'/Maisons|Villas|Terrains|Voitures|Immeubles|Appartements|Autres Immobiliers/', block)
+        category = category_match.group(0).strip('/').strip() if category_match else ""
+
+        contact_match = re.search(r'(\+216\s?\d{2,3}[\s\-\/]?\d{3}[\s\-\/]?\d{3})', block)
+        contact = contact_match.group(1).strip() if contact_match else ""
+
+        structured.append({
+            "Title": title,
+            "Price": price,
+            "Location": location,
+            "Category": category,
+            "Contact": contact
         })
-    return result
 
-st.title("Markdown Excel Parser")
+    return structured
 
-uploaded_file = st.file_uploader("Upload Excel file with raw markdown", type=["xlsx"])
+# === I/O ===
 
-if uploaded_file:
-    df = pd.read_excel(uploaded_file)
+input_path = "input_announcements.xlsx"
+output_path = "structured_announcements.xlsx"
 
-    if "data" not in df.columns:
-        st.error("Excel must contain a 'data' column with markdown content.")
-    else:
-        output_rows = []
-        for _, row in df.iterrows():
-            entries = parse_markdown(row["data"])
-            output_rows.extend(entries)
+df = pd.read_excel(input_path)
 
-        output_df = pd.DataFrame(output_rows)
+all_announcements = []
+for _, row in df.iterrows():
+    raw_text = str(row.get("raw_data", ""))
+    extracted = extract_announcements(raw_text)
+    all_announcements.extend(extracted)
 
-        # Display preview
-        st.dataframe(output_df.head())
+# Save
+output_df = pd.DataFrame(all_announcements)
+output_df.to_excel(output_path, index=False)
 
-        # Download button
-        buffer = BytesIO()
-        output_df.to_excel(buffer, index=False, engine="openpyxl")
-        buffer.seek(0)
-
-        st.download_button(
-            label="Download Result as Excel",
-            data=buffer,
-            file_name="parsed_output.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+print(f"✅ Extracted {len(output_df)} announcements into '{output_path}'")
