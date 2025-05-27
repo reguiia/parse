@@ -8,6 +8,7 @@ TUNISIAN_LOCATIONS = [
     "Kébili", "Tozeur", "Siliana", "Beja", "Bizerte", "Zaghouan", "Jendouba", "Le Kef"
 ]
 
+
 def extract_location(text):
     for loc in TUNISIAN_LOCATIONS:
         if re.search(rf"\b{re.escape(loc)}\b", text, re.IGNORECASE):
