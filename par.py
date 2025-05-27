@@ -1,69 +1,98 @@
-import re
+import streamlit as st
 import pandas as pd
+import re
+from io import BytesIO
 
-# List of major Tunisian cities and governorates (you can expand this)
-TUNISIAN_LOCATIONS = [
-    "Tunis", "Ariana", "Ben Arous", "La Marsa", "Manouba", "Nabeul", "Sousse", "Sfax",
-    "Monastir", "Mahdia", "Gabès", "Médenine", "Tataouine", "Kairouan", "Kasserine", "Gafsa",
-    "Kébili", "Tozeur", "Siliana", "Beja", "Bizerte", "Zaghouan", "Jendouba", "Le Kef"
-]
+# Title
+st.title("Tayara.tn Announcement Extractor")
 
+# File uploader
+uploaded_file = st.file_uploader("Upload Excel file containing raw announcements", type=["xlsx"])
 
-def extract_location(text):
-    for loc in TUNISIAN_LOCATIONS:
-        if re.search(rf"\b{re.escape(loc)}\b", text, re.IGNORECASE):
-            return loc
-    return ""
+# Helper function to parse each announcement block
+def parse_announcement(text):
+    # Initialize structured fields
+    title = ""
+    price = ""
+    location = ""
+    category = ""
+    description = ""
+    publisher = ""
 
-def extract_announcements(raw_text):
-    # Split each block by possible delimiter
-    announcements = re.split(r'/item/|\n?\* \[', raw_text)
-    structured = []
+    # Clean up
+    text = re.sub(r"\s+", " ", text.strip())
 
-    for block in announcements:
-        block = block.strip()
-        if not block or "publié par" not in block:
-            continue
+    # Extract Title (bold or ### header like Markdown)
+    title_match = re.search(r"(#+\s)?([A-ZÀ-ÿ0-9].+?)\s?\(", text)
+    if title_match:
+        title = title_match.group(2)
 
-        title_match = re.search(r'publié par .*? - (.*?) -', block)
-        title = title_match.group(1).strip() if title_match else ""
+    # Extract Price (like 1200DT or 1 200 Dinars)
+    price_match = re.search(r"([\d\s]+)(DT|Dinars)", text)
+    if price_match:
+        price = price_match.group(1).replace(" ", "") + " " + price_match.group(2)
 
-        price_match = re.search(r'(\d+[.,]?\d*)\s?DT', block)
-        price = price_match.group(0).strip() if price_match else ""
+    # Extract Location (before words like 'minutes ago', 'hours ago', or a known city)
+    loc_match = re.search(r"\b(Tunis|Ariana|Sfax|Sousse|Bizerte|Gabès|Gafsa|Kairouan|Mahdia|Monastir|Kébili|Kélibia|Ras[_\s]Jebel|Nabeul|Ben Arous|La Soukra)\b", text, re.IGNORECASE)
+    if loc_match:
+        location = loc_match.group(0).title()
 
-        location = extract_location(block)
+    # Extract Category (Maison, Terrain, Appartement, etc.)
+    cat_match = re.search(r"(Maison|Terrain|Appartement|Autres Immobiliers|Bureaux|Commerce|Terrains et Fermes)", text, re.IGNORECASE)
+    if cat_match:
+        category = cat_match.group(0).title()
 
-        category_match = re.search(r'/Maisons|Villas|Terrains|Voitures|Immeubles|Appartements|Autres Immobiliers/', block)
-        category = category_match.group(0).strip('/').strip() if category_match else ""
+    # Extract Publisher name (before “publié par” or boutique name)
+    pub_match = re.search(r"publié par ([A-Za-z0-9\s\-]+)", text)
+    if pub_match:
+        publisher = pub_match.group(1).strip()
 
-        contact_match = re.search(r'(\+216\s?\d{2,3}[\s\-\/]?\d{3}[\s\-\/]?\d{3})', block)
-        contact = contact_match.group(1).strip() if contact_match else ""
+    # Basic Description snippet
+    desc_match = re.search(r"propose.+?\.", text, re.IGNORECASE)
+    if desc_match:
+        description = desc_match.group(0)
 
-        structured.append({
-            "Title": title,
-            "Price": price,
-            "Location": location,
-            "Category": category,
-            "Contact": contact
-        })
+    return {
+        "Title": title,
+        "Price": price,
+        "Location": location,
+        "Category": category,
+        "Publisher": publisher,
+        "Description": description
+    }
 
-    return structured
+# Handle uploaded Excel file
+if uploaded_file:
+    try:
+        df = pd.read_excel(uploaded_file)
 
-# === I/O ===
+        # Detect column with raw text
+        column_name = "data" if "data" in df.columns else df.columns[0]
+        raw_text = df[column_name].astype(str).str.cat(sep=" ")
 
-input_path = "input_announcements.xlsx"
-output_path = "structured_announcements.xlsx"
+        # Split by announcement separator (typically /item/ or specific pattern)
+        blocks = re.split(r"/item/|(?=\d{6,}\/)", raw_text)
 
-df = pd.read_excel(input_path)
+        st.write(f"🧾 Detected {len(blocks)} announcements")
 
-all_announcements = []
-for _, row in df.iterrows():
-    raw_text = str(row.get("raw_data", ""))
-    extracted = extract_announcements(raw_text)
-    all_announcements.extend(extracted)
+        # Process each block
+        structured = [parse_announcement(b) for b in blocks if len(b.strip()) > 30]
 
-# Save
-output_df = pd.DataFrame(all_announcements)
-output_df.to_excel(output_path, index=False)
+        # Display result
+        result_df = pd.DataFrame(structured)
+        st.dataframe(result_df)
 
-print(f"✅ Extracted {len(output_df)} announcements into '{output_path}'")
+        # Download
+        output = BytesIO()
+        result_df.to_excel(output, index=False, engine="openpyxl")
+        output.seek(0)
+
+        st.download_button(
+            label="📥 Download Extracted Excel",
+            data=output,
+            file_name="tayara_announcements_extracted.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+    except Exception as e:
+        st.error(f"❌ Failed to process file: {e}")
