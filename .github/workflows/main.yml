@@ -26,9 +26,9 @@ jobs:
         env:
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
-          TWILIO_SID: ${{ secrets.TWILIO_SID }}
-          TWILIO_TOKEN: ${{ secrets.TWILIO_TOKEN }}
-          TWILIO_FROM_WHATSAPP: ${{ secrets.TWILIO_FROM_WHATSAPP }}
-          TO_WHATSAPP: ${{ secrets.TO_WHATSAPP }}
+          #TWILIO_SID: ${{ secrets.TWILIO_SID }}
+          #TWILIO_TOKEN: ${{ secrets.TWILIO_TOKEN }}
+          #TWILIO_FROM_WHATSAPP: ${{ secrets.TWILIO_FROM_WHATSAPP }}
+          #TO_WHATSAPP: ${{ secrets.TO_WHATSAPP }}
         run: |
           python par.py
