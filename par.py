@@ -19,7 +19,7 @@ def fetch_tayara(url):
         return None
 
 def extract_tayara_articles(html):
-    soup = BeautifulSoup(html, 'lxml')
+    soup = BeautifulSoup(html, 'html.parser')
     return soup.find_all("article", class_="mx-0")
 
 def parse_tayara_article(article):
