@@ -15,7 +15,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
 from email import encoders
 
-soup = BeautifulSoup(html_content, 'lxml')
+soup = BeautifulSoup(html, 'html.parser')
 
 # --- Functions for Tayara.tn ---
 def fetch_tayara(url):
