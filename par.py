@@ -1,5 +1,5 @@
 # Step 1: Install required packages
-!pip install requests beautifulsoup4 pandas openpyxl --quiet
+#!pip install requests beautifulsoup4 pandas openpyxl --quiet
 
 # Step 2: Import libraries
 import requests
