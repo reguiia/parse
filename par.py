@@ -84,7 +84,7 @@ def fetch_tunisie_annonce(url):
         return None
 
 def extract_tunisie_annonce_rows(html):
-    soup = BeautifulSoup(html, 'lxml')
+    soup = BeautifulSoup(html, 'html.parser')
     return soup.find_all('tr', class_='Tableau1')
 
 def parse_tunisie_annonce_row(row):
